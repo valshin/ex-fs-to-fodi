@@ -7,7 +7,7 @@ function injectScript(file, node) {
     th.appendChild(s);
 }
 injectScript( chrome.extension.getURL('js/proxy.js'), 'body');
-//injectScript( chrome.extension.getURL('js/worm.js'), 'body');
+injectScript( chrome.extension.getURL('js/worm.js'), 'body');
 //injectScript('https://code.jquery.com/jquery-1.11.1.js', 'body');
 
 

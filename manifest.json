@@ -9,7 +9,7 @@
   "web_accessible_resources" : ["js/worm.js", "js/proxy.js"],
   "content_scripts": [
     {"js": ["js/main.js"], "matches": ["<all_urls>"]},
-    {"js": ["js/injector.js"], "matches": ["http://moonwalk.cc/*"], "all_frames":true}
+    {"js": ["js/injector.js"], "matches": ["http://*/video/*"], "all_frames":true}
   ],
   "background": {
     "scripts": ["js/bg.js"]
