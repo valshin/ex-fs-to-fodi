@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
-  "name": "Getting started example",
-  "description": "This extension shows a Google Image search result for the current page",
+  "name": "EX-FS to KODI",
+  "description": "Allows to send content to KODI using RPC",
   "version": "1.0",
   "externally_connectable": {
     "matches": ["http://moonwalk.cc/*"]
@@ -9,7 +9,7 @@
   "web_accessible_resources" : ["js/worm.js", "js/proxy.js"],
   "content_scripts": [
     {"js": ["js/main.js"], "matches": ["<all_urls>"]},
-    {"js": ["js/injector.js"], "matches": ["http://*/video/*"], "all_frames":true}
+    {"js": ["js/injector.js"], "matches": ["http://*/*iframe"], "all_frames":true}
   ],
   "background": {
     "scripts": ["js/bg.js"]

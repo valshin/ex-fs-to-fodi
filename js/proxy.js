@@ -93,9 +93,9 @@ var checkContext = function (elem) {
     return false;
 };
 
-var stored = jQuery.fn.append;
+var stored = $.fn.append;
 
-jQuery.fn.extend({
+$.fn.extend({
     append: function () {
         var self = this;
         var res = checkContext.apply(self, arguments);
