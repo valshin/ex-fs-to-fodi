@@ -1,105 +1,166 @@
-var sendPlaylist = function (playlist) {
-    debugger;
-}
+(() => {
+    const worm = (() => {
 
-var checkContext = function (elem) {
-    var root = this;
-    if (elem.includes && elem.includes('manifest_m3u8')) {
-        var iframe = $(elem);
-        root.append(iframe);
-        iframe.on('load', function () {
-            var fn = (function () {
-                var iid = setInterval(function () {
-                    if (!links.hls) {
-                        return;
-                    }
-                    clearInterval(iid);
-                    debugger;
-                    $.ajax({
-                        url: links.hls,
-                        success: function (data) {
-                            debugger;
-                            var hdUrlRegEx = /BANDWIDTH.*\n(http.*\.m3u8)/;
-                            var hdUrl = hdUrlRegEx.exec(data)[1];
-                            debugger;
-                            $.ajax({
-                                type: 'POST',
-                                url: 'http://192.168.0.107:8100/play',
-                                data: JSON.stringify({
-                                    "jsonrpc": "2.0",
-                                    "method": "Playlist.Add",
-                                    "params": {
-                                        "playlistid": 1,
-                                        "item": {"file": hdUrl}
-                                    },
-                                    "id": 1
-                                }), // or JSON.stringify ({name: 'jonas'}),
-                                success: function (data) {
-                                    debugger
-                                },
-                                contentType: "application/json",
-                                dataType: 'json'
-                            });
-                            // $.ajax({
-                            //     type: 'POST',
-                            //     url: 'http://192.168.0.107:8100/play',
-                            //     // url: 'http://anonymous@192.168.0.105:8100/jsonrpc',
-                            //     success: function (response) {
-                            //         debugger;
-                            //     },
-                            //     contentType: "application/json",
-                            //     data: {
-                            //         "jsonrpc": "2.0",
-                            //         "method": "Playlist.Add",
-                            //         "params": {
-                            //             "playlistid": 1,
-                            //             "item": {"file": hdUrl}
-                            //         },
-                            //         "id": 1
-                            //     },
-                            //     dataType: 'json',
-                            //     timeout: 5000,
-                            //     username: 'anonymous',
-                            //     password: '',
-                            //     error: function (jqXHR, textStatus, erroThrown) {
-                            //         debugger;
-                            //     },
-                            //     beforeSend: function (xhr, settings) {
-                            //         xhr.mozBackgroundRequest = true;
-                            //     }
-                            // });
-                            // $('html').append('<div id="playlist">' + data + '</div>');
-                            console.info(data);
-                        },
-                        error: function (data) {
-                            debugger;
-                        }
-                    });
-                }, 50);
-
-            }).toString();
-            iframe[0].contentWindow.eval('(' + fn + ')()');
-        });
-        var intervalId = setInterval(function () {
-            var playlist = $('#playlist');
-            if (playlist.text().length) {
-                debugger;
-                clearInterval(intervalId);
-                sendPlaylist(playlist);
+        class Logger {
+            constructor() {
+                this._prefix = 'EX-FS to KODI:';
             }
-        }, 50);
-        return true;
-    }
-    return false;
-};
 
-var stored = $.fn.append;
+            getMsg() {
+                return Array.prototype.slice.call(arguments).join(' ');
+            }
 
-$.fn.extend({
-    append: function () {
-        var self = this;
-        var res = checkContext.apply(self, arguments);
-        if (res) return;
-        return stored.apply(self, arguments);
+            error() {
+                console.error(this._prefix, this.getMsg.apply(this, arguments));
+            }
+
+            info() {
+                console.info(this._prefix, this.getMsg.apply(this, arguments));
+            }
+        }
+
+        class Worker {
+            constructor(jQuery) {
+                this._checkInterval = undefined;
+                this._stopInterval = undefined;
+                this._logger = new Logger();
+                this._interval = 50;
+                this.$ = jQuery;
+            }
+
+            onSendToKodiSuccess(data) {
+                this._logger.info('Sent successfully');
+            }
+
+            sendToKodi(url) {
+                this.$.ajax({
+                    type: 'POST',
+                    url: 'http://192.168.0.107:8100/play',
+                    data: JSON.stringify({
+                        "jsonrpc": "2.0",
+                        "method": "Playlist.Add",
+                        "params": {
+                            "playlistid": 1,
+                            "item": {"file": url}
+                        },
+                        "id": 1
+                    }),
+                    success: this.onSendToKodiSuccess.bind(this),
+                    contentType: "application/json",
+                    dataType: 'json'
+                });
+            }
+
+            parsePlaylist(data) {
+                this._logger.info('Found playlist:');
+                this._logger.info(data);
+                let resRegExp = /BANDWIDTH=.*\n(http.*\.m3u8)/gi;
+                let qRegExp = /BANDWIDTH=(\d+).*\n(http.*\.m3u8)/i;
+                let variants = data.match(resRegExp);
+                variants = variants.map(variant => {
+                    const res = qRegExp.exec(variant);
+                    qRegExp.lastIndex = 0;
+                    return {
+                        quality: res[1],
+                        url: res[2]
+                    };
+                });
+                let best = variants.sort((a, b) => a.quality > b.quality)[0];
+                if (!variants.length) {
+                    this._logger.error('No url found');
+                    return;
+                }
+                this._logger.info('Sending to play the best quality', best.quality, 'by url', best.url);
+                return best.url;
+
+            }
+
+            playlistHandler(data) {
+                let url = this.parsePlaylist(data);
+                this.sendToKodi(url);
+            }
+
+            onPlaylistError() {
+                this._logger.error('Playlist obtaining error');
+            }
+
+            playlistChecker() {
+                if (!links || !links.hls) {
+                    return;
+                }
+                clearInterval(this._checkInterval);
+                this.stopVideo();
+                this._logger.info("Playlist url found:");
+                this._logger.info(links.hls);
+                this.$.ajax({
+                    url: links.hls,
+                    success: this.playlistHandler.bind(this),
+                    error: this.onPlaylistError.bind(this)
+                });
+            }
+
+            doStop() {
+                clearInterval(this._stopInterval);
+                this.$('.fp-pause-icon').click();
+            }
+
+            checkStopButton() {
+                return this.$('#player.is-ready').text().length;
+            }
+
+            tryStopVideo() {
+                this.checkStopButton() && this.doStop();
+            }
+
+            stopVideo() {
+                this._stopInterval = setInterval(this.tryStopVideo.bind(this), this._interval);
+            }
+
+            run() {
+                this._checkInterval = setInterval(
+                    this.playlistChecker.bind(this),
+                    this._interval
+                );
+            }
+
+        }
+        let worker = new Worker($);
+        worker.run();
+    }).toString();
+
+    class Injector {
+        constructor(jQuery) {
+            this.jQuery = jQuery;
+        }
+
+        affectJQuery() {
+            const stored = this.jQuery.fn.append;
+            const jQuery = this.jQuery;
+            jQuery.fn.extend({
+                append: function () {
+                    const elem = arguments[0];
+                    if (elem.includes && elem.includes('manifest_m3u8')) {
+                        const iframe = jQuery(elem);
+                        iframe.on('load', function () {
+                            iframe[0].contentWindow.eval('(' + worm + ')()');
+                        });
+                        return this.append(iframe);
+                    }
+                    return stored.apply(this, arguments);
+                }
+            });
+        }
+
+        inject() {
+            this.affectJQuery();
+        }
     }
-});
+
+    const injector = new Injector($);
+    injector.inject();
+
+})();
+
+
+
+
